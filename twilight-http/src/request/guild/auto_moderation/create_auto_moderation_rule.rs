@@ -57,6 +57,8 @@ struct CreateAutoModerationRuleFieldsTriggerMetadata<'a> {
     presets: Option<&'a [AutoModerationKeywordPresetType]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mention_total_limit: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    regex_patterns: Option<&'a [&'a str]>,
 }
 
 #[derive(Serialize)]
@@ -88,10 +90,10 @@ struct CreateAutoModerationRuleFields<'a> {
 ///
 /// let guild_id = Id::new(1);
 /// client
-///     .create_auto_moderation_rule(guild_id, "no darns", AutoModerationEventType::MessageSend)
+///     .create_auto_moderation_rule(guild_id, "no bad words", AutoModerationEventType::MessageSend)
 ///     .action_block_message()
 ///     .enabled(true)
-///     .with_keyword(&["darn"])
+///     .with_keyword(&["darn"], &["*fuck*"], &[])
 ///     .await?;
 /// # Ok(()) }
 /// ```
@@ -228,9 +230,9 @@ impl<'a> CreateAutoModerationRule<'a> {
 
     /// Create the request with the trigger type [`Keyword`], then execute it.
     ///
-    /// Rules of this type require the `keyword_filter` field specified, and
-    /// this method ensures this. See [Discord Docs/Keyword Matching Strategies]
-    /// and [Discord Docs/Trigger Metadata].
+    /// Rules of this type require the `keyword_filter`, `allow_list` and
+    /// `regex_patterns` fields specified, and this method ensures this.
+    /// See [Discord Docs/Keyword Matching Strategies] and [Discord Docs/Trigger Metadata].
     ///
     /// [`Keyword`]: AutoModerationTriggerType::Keyword
     /// [Discord Docs/Keyword Matching Strategies]: https://discord.com/developers/docs/resources/auto-moderation#auto-moderation-rule-object-keyword-matching-strategies
@@ -238,10 +240,13 @@ impl<'a> CreateAutoModerationRule<'a> {
     pub fn with_keyword(
         mut self,
         keyword_filter: &'a [&'a str],
+        regex_patterns: &'a [&'a str],
+        allow_list: &'a [&'a str],
     ) -> ResponseFuture<AutoModerationRule> {
         self.fields.trigger_metadata = Some(CreateAutoModerationRuleFieldsTriggerMetadata {
-            allow_list: None,
             keyword_filter: Some(keyword_filter),
+            regex_patterns: Some(regex_patterns),
+            allow_list: Some(allow_list),
             presets: None,
             mention_total_limit: None,
         });
@@ -279,6 +284,7 @@ impl<'a> CreateAutoModerationRule<'a> {
             keyword_filter: None,
             presets: Some(presets),
             mention_total_limit: None,
+            regex_patterns: None,
         });
 
         self.fields.trigger_type = Some(AutoModerationTriggerType::KeywordPreset);
@@ -316,6 +322,7 @@ impl<'a> CreateAutoModerationRule<'a> {
             keyword_filter: None,
             presets: None,
             mention_total_limit: Some(mention_total_limit),
+            regex_patterns: None,
         });
 
         self.fields.trigger_type = Some(AutoModerationTriggerType::MentionSpam);
