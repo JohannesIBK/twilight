@@ -250,6 +250,7 @@ impl InMemoryCache {
     /// Clear the state of the Cache.
     ///
     /// This is equal to creating a new empty cache.
+    #[allow(clippy::missing_panics_doc)]
     pub fn clear(&self) {
         self.channels.clear();
         self.channel_messages.clear();
@@ -369,6 +370,7 @@ impl InMemoryCache {
     }
 
     /// Gets the current user.
+    #[allow(clippy::missing_panics_doc)]
     pub fn current_user(&self) -> Option<CurrentUser> {
         self.current_user
             .lock()
@@ -859,7 +861,7 @@ impl UpdateCache for Event {
             Event::GuildStickersUpdate(v) => c.update(v),
             Event::GuildUpdate(v) => c.update(v.deref()),
             Event::IntegrationCreate(v) => c.update(v.deref()),
-            Event::IntegrationDelete(v) => c.update(v.deref()),
+            Event::IntegrationDelete(v) => c.update(v),
             Event::IntegrationUpdate(v) => c.update(v.deref()),
             Event::InteractionCreate(v) => c.update(v.deref()),
             Event::MemberAdd(v) => c.update(v.deref()),
@@ -929,7 +931,7 @@ mod tests {
     use crate::{test, InMemoryCache};
     use twilight_model::{
         gateway::payload::incoming::RoleDelete,
-        guild::{Member, MemberFlags, Permissions, Role},
+        guild::{Member, MemberFlags, Permissions, Role, RoleFlags},
         id::Id,
         util::Timestamp,
     };
@@ -955,7 +957,7 @@ mod tests {
 
     #[test]
     fn highest_role() {
-        let joined_at = Timestamp::from_secs(1_632_072_645).expect("non zero");
+        let joined_at = Some(Timestamp::from_secs(1_632_072_645).expect("non zero"));
         let cache = InMemoryCache::new();
         let guild_id = Id::new(1);
         let user = test::user(Id::new(1));
@@ -990,6 +992,7 @@ mod tests {
                     name: "test".to_owned(),
                     permissions: Permissions::empty(),
                     position: 0,
+                    flags: RoleFlags::empty(),
                     tags: None,
                     unicode_emoji: None,
                 },
@@ -1003,6 +1006,7 @@ mod tests {
                     name: "test".to_owned(),
                     permissions: Permissions::empty(),
                     position: 1,
+                    flags: RoleFlags::empty(),
                     tags: None,
                     unicode_emoji: None,
                 },

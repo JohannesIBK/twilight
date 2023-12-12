@@ -128,7 +128,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn voice_state_complete() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?);
         let premium_since = Timestamp::from_str("2021-03-16T14:29:19.046000+00:00")?;
         let request_to_speak_timestamp = Timestamp::from_str("2021-04-21T22:16:50.000000+00:00")?;
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
@@ -151,11 +151,13 @@ mod tests {
                 user: User {
                     accent_color: None,
                     avatar: None,
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 1,
                     email: None,
                     flags: None,
+                    global_name: Some("test".to_owned()),
                     id: Id::new(3),
                     locale: None,
                     mfa_enabled: None,
@@ -207,6 +209,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2015-04-26T06:26:56.936000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(true),
@@ -224,11 +227,13 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
+                Token::None,
+                Token::Str("avatar_decoration"),
                 Token::None,
                 Token::Str("banner"),
                 Token::None,
@@ -236,6 +241,9 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),

@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn member_add() {
-        let joined_at = Timestamp::from_secs(1_632_072_645).expect("non zero");
+        let joined_at = Some(Timestamp::from_secs(1_632_072_645).expect("non zero"));
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let value = MemberAdd {
@@ -59,9 +59,11 @@ mod tests {
                     id: Id::new(2),
                     accent_color: None,
                     avatar: None,
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 987,
+                    global_name: None,
                     name: "ab".to_string(),
                     mfa_enabled: None,
                     locale: None,
@@ -89,6 +91,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2021-09-19T17:30:45.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -102,11 +105,13 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 8,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
+                Token::None,
+                Token::Str("avatar_decoration"),
                 Token::None,
                 Token::Str("banner"),
                 Token::None,

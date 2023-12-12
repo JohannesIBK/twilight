@@ -107,7 +107,7 @@ mod tests {
         const JOIN_TIMESTAMP: &str = "2015-04-26T06:26:56.936000+00:00";
         const PREMIUM_SINCE: &str = "2021-03-16T14:29:19.046000+00:00";
 
-        let joined_at = Timestamp::from_str(JOIN_TIMESTAMP).expect("timestamp error");
+        let joined_at = Some(Timestamp::from_str(JOIN_TIMESTAMP).expect("timestamp error"));
         let premium_since = Timestamp::from_str(PREMIUM_SINCE).expect("timestamp error");
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
@@ -125,11 +125,13 @@ mod tests {
             user: User {
                 accent_color: None,
                 avatar: None,
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: None,
                 flags: None,
+                global_name: Some("test".to_owned()),
                 id: Id::new(3),
                 locale: None,
                 mfa_enabled: None,
@@ -232,6 +234,7 @@ mod tests {
                 Token::NewtypeStruct { name: "GuildId" },
                 Token::Str("1"),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str(JOIN_TIMESTAMP),
                 Token::Str("mute"),
                 Token::Bool(true),
@@ -249,11 +252,13 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
+                Token::None,
+                Token::Str("avatar_decoration"),
                 Token::None,
                 Token::Str("banner"),
                 Token::None,
@@ -261,6 +266,9 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "UserId" },
                 Token::Str("3"),

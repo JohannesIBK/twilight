@@ -26,7 +26,7 @@ pub use self::{
     interaction::MessageInteraction,
     kind::MessageType,
     mention::Mention,
-    reaction::{Reaction, ReactionType},
+    reaction::{Reaction, ReactionCountDetails, ReactionType},
     reference::MessageReference,
     role_subscription_data::RoleSubscriptionData,
     sticker::Sticker,
@@ -196,6 +196,7 @@ pub struct Message {
 #[cfg(test)]
 mod tests {
     use super::{
+        reaction::ReactionCountDetails,
         sticker::{MessageSticker, StickerFormatType},
         Message, MessageActivity, MessageActivityType, MessageApplication, MessageFlags,
         MessageReference, MessageType, Reaction, ReactionType,
@@ -214,7 +215,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn message_deserialization() {
-        let joined_at = Timestamp::from_str("2020-01-01T00:00:00.000000+00:00").unwrap();
+        let joined_at = Some(Timestamp::from_str("2020-01-01T00:00:00.000000+00:00").unwrap());
         let timestamp = Timestamp::from_micros(1_580_608_922_020_000).expect("non zero");
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
@@ -226,11 +227,13 @@ mod tests {
             author: User {
                 accent_color: None,
                 avatar: Some(image_hash::AVATAR),
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: None,
                 flags: None,
+                global_name: Some("test".to_owned()),
                 id: Id::new(3),
                 locale: None,
                 mfa_enabled: None,
@@ -296,19 +299,24 @@ mod tests {
                 Token::Str("author"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),
@@ -350,6 +358,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2020-01-01T00:00:00.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -400,7 +409,7 @@ mod tests {
     #[test]
     fn message_deserialization_complete() -> Result<(), TimestampParseError> {
         let edited_timestamp = Timestamp::from_str("2021-08-10T12:41:51.602000+00:00")?;
-        let joined_at = Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?);
         let timestamp = Timestamp::from_micros(1_580_608_922_020_000).expect("non zero");
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
@@ -421,11 +430,13 @@ mod tests {
             author: User {
                 accent_color: None,
                 avatar: Some(image_hash::AVATAR),
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: None,
                 flags: None,
+                global_name: Some("test".to_owned()),
                 id: Id::new(3),
                 locale: None,
                 mfa_enabled: None,
@@ -469,11 +480,17 @@ mod tests {
             mentions: Vec::new(),
             pinned: false,
             reactions: vec![Reaction {
+                burst_colors: Vec::new(),
                 count: 7,
+                count_details: ReactionCountDetails {
+                    burst: 0,
+                    normal: 7,
+                },
                 emoji: ReactionType::Unicode {
                     name: "a".to_owned(),
                 },
                 me: true,
+                me_burst: false,
             }],
             reference: Some(MessageReference {
                 channel_id: Some(Id::new(1)),
@@ -540,19 +557,24 @@ mod tests {
                 Token::Str("author"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),
@@ -595,6 +617,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2020-01-01T00:00:00.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -639,10 +662,23 @@ mod tests {
                 Token::Seq { len: Some(1) },
                 Token::Struct {
                     name: "Reaction",
-                    len: 3,
+                    len: 6,
                 },
+                Token::Str("burst_colors"),
+                Token::Seq { len: Some(0) },
+                Token::SeqEnd,
                 Token::Str("count"),
                 Token::U64(7),
+                Token::Str("count_details"),
+                Token::Struct {
+                    name: "ReactionCountDetails",
+                    len: 2,
+                },
+                Token::Str("burst"),
+                Token::U64(0),
+                Token::Str("normal"),
+                Token::U64(7),
+                Token::StructEnd,
                 Token::Str("emoji"),
                 Token::Struct {
                     name: "ReactionType",
@@ -653,6 +689,8 @@ mod tests {
                 Token::StructEnd,
                 Token::Str("me"),
                 Token::Bool(true),
+                Token::Str("me_burst"),
+                Token::Bool(false),
                 Token::StructEnd,
                 Token::SeqEnd,
                 Token::Str("message_reference"),

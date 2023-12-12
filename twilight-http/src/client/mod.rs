@@ -4,7 +4,13 @@ mod interaction;
 
 pub use self::{builder::ClientBuilder, interaction::InteractionClient};
 
-use crate::request::GetCurrentAuthorizationInformation;
+use crate::request::{
+    guild::{
+        update_guild_onboarding::{UpdateGuildOnboarding, UpdateGuildOnboardingFields},
+        GetGuildOnboarding,
+    },
+    GetCurrentAuthorizationInformation,
+};
 #[allow(deprecated)]
 use crate::{
     client::connector::Connector,
@@ -945,6 +951,15 @@ impl Client {
         CreateGuildChannel::new(self, guild_id, name)
     }
 
+    /// Modify the guild onboarding flow.
+    pub const fn update_guild_onboarding(
+        &self,
+        guild_id: Id<GuildMarker>,
+        fields: UpdateGuildOnboardingFields,
+    ) -> UpdateGuildOnboarding {
+        UpdateGuildOnboarding::new(self, guild_id, fields)
+    }
+
     /// Modify the positions of the channels.
     ///
     /// The minimum amount of channels to modify, is a swap between two channels.
@@ -1043,7 +1058,11 @@ impl Client {
     /// #
     /// let guild_id = Id::new(100);
     /// let user_id = Id::new(3000);
-    /// let members = client.guild_members(guild_id).after(user_id).await?;
+    /// let members = client
+    ///     .guild_members(guild_id)
+    ///     .after(user_id)
+    ///     .limit(500)?
+    ///     .await?;
     /// # Ok(()) }
     /// ```
     ///
@@ -1231,6 +1250,11 @@ impl Client {
         RemoveRoleFromMember::new(self, guild_id, user_id, role_id)
     }
 
+    /// Retrieves the onboarding data for a guild.
+    pub const fn guild_onboarding(&self, guild_id: Id<GuildMarker>) -> GetGuildOnboarding<'_> {
+        GetGuildOnboarding::new(self, guild_id)
+    }
+
     /// For public guilds, get the guild preview.
     ///
     /// This works even if the user is not in the guild.
@@ -1416,7 +1440,6 @@ impl Client {
     /// Returns an error of type
     /// [`ChannelValidationErrorType::BulkDeleteMessagesInvalid`] when the number of
     /// messages to delete in bulk is invalid.
-    /// is not between 1 and 120 characters in length.
     ///
     /// [Discord Docs/Bulk Delete Messages]: https://discord.com/developers/docs/resources/channel#bulk-delete-messages
     /// [`ChannelValidationErrorType::BulkDeleteMessagesInvalid`]: twilight_validate::channel::ChannelValidationErrorType::BulkDeleteMessagesInvalid

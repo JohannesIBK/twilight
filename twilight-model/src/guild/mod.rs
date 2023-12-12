@@ -8,6 +8,7 @@
 pub mod audit_log;
 pub mod auto_moderation;
 pub mod invite;
+pub mod onboarding;
 pub mod scheduled_event;
 pub mod template;
 pub mod widget;
@@ -35,6 +36,7 @@ mod premium_tier;
 mod preview;
 mod prune;
 mod role;
+mod role_flags;
 mod role_tags;
 mod system_channel_flags;
 mod unavailable_guild;
@@ -52,9 +54,9 @@ pub use self::{
     integration_expire_behavior::IntegrationExpireBehavior, integration_type::GuildIntegrationType,
     member::Member, member_flags::MemberFlags, mfa_level::MfaLevel, partial_guild::PartialGuild,
     partial_member::PartialMember, premium_tier::PremiumTier, preview::GuildPreview,
-    prune::GuildPrune, role::Role, role_tags::RoleTags, system_channel_flags::SystemChannelFlags,
-    unavailable_guild::UnavailableGuild, vanity_url::VanityUrl,
-    verification_level::VerificationLevel, widget::GuildWidget,
+    prune::GuildPrune, role::Role, role_flags::RoleFlags, role_tags::RoleTags,
+    system_channel_flags::SystemChannelFlags, unavailable_guild::UnavailableGuild,
+    vanity_url::VanityUrl, verification_level::VerificationLevel, widget::GuildWidget,
 };
 
 use super::gateway::presence::PresenceListDeserializer;
@@ -272,25 +274,12 @@ impl<'de> Deserialize<'de> for Guild {
                 let mut widget_channel_id = None::<Option<_>>;
                 let mut widget_enabled = None::<Option<_>>;
 
-                let span = tracing::trace_span!("deserializing guild");
-                let _span_enter = span.enter();
-
                 loop {
-                    let span_child = tracing::trace_span!("iterating over element");
-                    let _span_child_enter = span_child.enter();
-
                     let key = match map.next_key() {
-                        Ok(Some(key)) => {
-                            tracing::trace!(?key, "found key");
-
-                            key
-                        }
+                        Ok(Some(key)) => key,
                         Ok(None) => break,
-                        Err(why) => {
-                            // Encountered when we run into an unknown key.
+                        Err(_) => {
                             map.next_value::<IgnoredAny>()?;
-
-                            tracing::trace!("ran into an unknown key: {why:?}");
 
                             continue;
                         }
@@ -707,61 +696,6 @@ impl<'de> Deserialize<'de> for Guild {
                 let widget_channel_id = widget_channel_id.unwrap_or_default();
                 let widget_enabled = widget_enabled.unwrap_or_default();
 
-                tracing::trace!(
-                    ?afk_channel_id,
-                    ?afk_timeout,
-                    ?application_id,
-                    ?approximate_member_count,
-                    ?approximate_presence_count,
-                    ?banner,
-                    ?channels,
-                    ?default_message_notifications,
-                    ?description,
-                    ?discovery_splash,
-                    ?emojis,
-                    ?explicit_content_filter,
-                    ?features,
-                    ?icon,
-                    %id,
-                    ?large,
-                    ?joined_at,
-                    ?max_members,
-                    ?max_presences,
-                    ?max_video_channel_users,
-                    ?member_count,
-                    ?members,
-                    ?mfa_level,
-                    %name,
-                    %owner_id,
-                    ?owner,
-                    ?permissions,
-                    ?preferred_locale,
-                    ?premium_progress_bar_enabled,
-                );
-
-                // Split in two due to generic impl only going up to 32.
-                tracing::trace!(
-                    ?premium_subscription_count,
-                    ?premium_tier,
-                    ?presences,
-                    ?public_updates_channel_id,
-                    ?rules_channel_id,
-                    ?roles,
-                    ?safety_alerts_channel_id,
-                    ?splash,
-                    ?stage_instances,
-                    ?stickers,
-                    ?system_channel_flags,
-                    ?system_channel_id,
-                    ?threads,
-                    ?unavailable,
-                    ?vanity_url_code,
-                    ?voice_states,
-                    ?widget_channel_id,
-                    ?widget_enabled,
-                    ?verification_level,
-                );
-
                 for channel in &mut channels {
                     channel.guild_id = Some(id);
                 }
@@ -902,7 +836,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn guild() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?);
 
         let value = Guild {
             afk_channel_id: Some(Id::new(2)),
@@ -920,7 +854,7 @@ mod tests {
             features: Vec::from([GuildFeature::Banner]),
             icon: Some(image_hash::ICON),
             id: Id::new(1),
-            joined_at: Some(joined_at),
+            joined_at,
             large: true,
             max_members: Some(25_000),
             max_presences: Some(10_000),

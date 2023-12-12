@@ -80,7 +80,7 @@ pub struct InteractionMember {
     /// Defaults to an empty bitfield.
     pub flags: MemberFlags,
     /// Member guild join date.
-    pub joined_at: Timestamp,
+    pub joined_at: Option<Timestamp>,
     /// Member nickname.
     pub nick: Option<String>,
     /// Whether the user has yet to pass the guild's Membership Screening
@@ -106,7 +106,7 @@ mod tests {
             },
             Attachment, ChannelType, Message,
         },
-        guild::{MemberFlags, PartialMember, Permissions, Role},
+        guild::{MemberFlags, PartialMember, Permissions, Role, RoleFlags},
         id::Id,
         test::image_hash,
         user::{PremiumType, User, UserFlags},
@@ -118,7 +118,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn test_data_resolved() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2021-08-10T12:18:37.000000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2021-08-10T12:18:37.000000+00:00")?);
         let timestamp = Timestamp::from_str("2020-02-02T02:02:02.020000+00:00")?;
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
@@ -129,6 +129,7 @@ mod tests {
                     content_type: Some("image/png".to_owned()),
                     ephemeral: true,
                     filename: "rainbow_dash.png".to_owned(),
+                    flags: None,
                     description: None,
                     duration_secs: None,
                     height: Some(2674),
@@ -178,11 +179,13 @@ mod tests {
                     author: User {
                         accent_color: None,
                         avatar: Some(image_hash::AVATAR),
+                        avatar_decoration: None,
                         banner: None,
                         bot: false,
                         discriminator: 1,
                         email: None,
                         flags: None,
+                        global_name: Some("test".to_owned()),
                         id: Id::new(3),
                         locale: None,
                         mfa_enabled: None,
@@ -248,6 +251,7 @@ mod tests {
                     name: "test".to_owned(),
                     permissions: Permissions::ADMINISTRATOR,
                     position: 12,
+                    flags: RoleFlags::empty(),
                     tags: None,
                     unicode_emoji: None,
                 },
@@ -258,11 +262,13 @@ mod tests {
                 User {
                     accent_color: None,
                     avatar: Some(image_hash::AVATAR),
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 1,
                     email: Some("address@example.com".to_owned()),
                     flags: Some(UserFlags::PREMIUM_EARLY_SUPPORTER | UserFlags::VERIFIED_DEVELOPER),
+                    global_name: Some("test".to_owned()),
                     id: Id::new(300),
                     locale: Some("en-us".to_owned()),
                     mfa_enabled: Some(true),
@@ -349,6 +355,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2021-08-10T12:18:37.000000+00:00"),
                 Token::Str("nick"),
                 Token::None,
@@ -375,19 +382,24 @@ mod tests {
                 Token::Str("author"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),
@@ -429,6 +441,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2021-08-10T12:18:37.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -478,7 +491,7 @@ mod tests {
                 Token::Str("400"),
                 Token::Struct {
                     name: "Role",
-                    len: 8,
+                    len: 9,
                 },
                 Token::Str("color"),
                 Token::U32(0),
@@ -497,6 +510,8 @@ mod tests {
                 Token::Str("8"),
                 Token::Str("position"),
                 Token::I64(12),
+                Token::Str("flags"),
+                Token::U64(0),
                 Token::StructEnd,
                 Token::MapEnd,
                 Token::Str("users"),
@@ -505,13 +520,15 @@ mod tests {
                 Token::Str("300"),
                 Token::Struct {
                     name: "User",
-                    len: 14,
+                    len: 16,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
@@ -524,6 +541,9 @@ mod tests {
                 Token::Str("flags"),
                 Token::Some,
                 Token::U64(131_584),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("300"),

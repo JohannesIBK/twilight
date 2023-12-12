@@ -56,25 +56,12 @@ impl<'de> Visitor<'de> for MemberChunkVisitor {
         let mut not_found = None;
         let mut presences = None;
 
-        let span = tracing::trace_span!("deserializing member chunk");
-        let _span_enter = span.enter();
-
         loop {
-            let span_child = tracing::trace_span!("iterating over element");
-            let _span_child_enter = span_child.enter();
-
             let key = match map.next_key() {
-                Ok(Some(key)) => {
-                    tracing::trace!(?key, "found key");
-
-                    key
-                }
+                Ok(Some(key)) => key,
                 Ok(None) => break,
-                Err(why) => {
-                    // Encountered when we run into an unknown key.
+                Err(_) => {
                     map.next_value::<IgnoredAny>()?;
-
-                    tracing::trace!("ran into an unknown key: {why:?}");
 
                     continue;
                 }
@@ -142,15 +129,6 @@ impl<'de> Visitor<'de> for MemberChunkVisitor {
         let not_found = not_found.unwrap_or_default();
         let mut presences = presences.unwrap_or_default();
 
-        tracing::trace!(
-            %chunk_count,
-            %chunk_index,
-            ?guild_id,
-            ?members,
-            ?not_found,
-            ?presences,
-        );
-
         for presence in &mut presences {
             presence.guild_id = guild_id;
         }
@@ -199,7 +177,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn simple_member_chunk() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2020-04-04T04:04:04.000000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2020-04-04T04:04:04.000000+00:00")?);
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let input = serde_json::json!({
@@ -219,6 +197,7 @@ mod tests {
                 "user": {
                     "avatar": image_hash::AVATAR_INPUT,
                     "discriminator": "0001",
+                    "global_name": "test",
                     "id": "5",
                     "public_flags": 131_072,
                     "username": "test",
@@ -235,6 +214,7 @@ mod tests {
                 "user": {
                     "avatar": image_hash::AVATAR_INPUT,
                     "discriminator": "0001",
+                    "global_name": "test",
                     "id": "6",
                     "username": "test",
                 },
@@ -251,6 +231,7 @@ mod tests {
                     "avatar": image_hash::AVATAR_INPUT,
                     "bot": true,
                     "discriminator": "0001",
+                    "global_name": "test",
                     "id": "3",
                     "username": "test",
                 },
@@ -270,6 +251,7 @@ mod tests {
                     "avatar": image_hash::AVATAR_INPUT,
                     "bot": true,
                     "discriminator": "0001",
+                    "global_name": "test",
                     "id": "2",
                     "username": "test",
                 },
@@ -327,6 +309,7 @@ mod tests {
                         id: Id::new(2),
                         accent_color: None,
                         avatar: Some(image_hash::AVATAR),
+                        avatar_decoration: None,
                         banner: None,
                         bot: true,
                         discriminator: 1,
@@ -336,6 +319,7 @@ mod tests {
                         verified: None,
                         email: None,
                         flags: None,
+                        global_name: Some("test".to_owned()),
                         premium_type: None,
                         system: None,
                         public_flags: None,
@@ -356,6 +340,7 @@ mod tests {
                         id: Id::new(3),
                         accent_color: None,
                         avatar: Some(image_hash::AVATAR),
+                        avatar_decoration: None,
                         banner: None,
                         bot: true,
                         discriminator: 1,
@@ -365,6 +350,7 @@ mod tests {
                         verified: None,
                         email: None,
                         flags: None,
+                        global_name: Some("test".to_owned()),
                         premium_type: None,
                         system: None,
                         public_flags: None,
@@ -385,6 +371,7 @@ mod tests {
                         id: Id::new(5),
                         accent_color: None,
                         avatar: Some(image_hash::AVATAR),
+                        avatar_decoration: None,
                         banner: None,
                         bot: false,
                         discriminator: 1,
@@ -394,6 +381,7 @@ mod tests {
                         verified: None,
                         email: None,
                         flags: None,
+                        global_name: Some("test".to_owned()),
                         premium_type: None,
                         system: None,
                         public_flags: Some(UserFlags::VERIFIED_DEVELOPER),
@@ -414,6 +402,7 @@ mod tests {
                         id: Id::new(6),
                         accent_color: None,
                         avatar: Some(image_hash::AVATAR),
+                        avatar_decoration: None,
                         banner: None,
                         bot: false,
                         discriminator: 1,
@@ -423,6 +412,7 @@ mod tests {
                         verified: None,
                         email: None,
                         flags: None,
+                        global_name: Some("test".to_owned()),
                         premium_type: None,
                         system: None,
                         public_flags: None,

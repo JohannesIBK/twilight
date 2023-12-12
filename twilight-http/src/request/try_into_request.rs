@@ -63,13 +63,14 @@ mod private {
                 CreateGuildSticker, DeleteGuildSticker, GetGuildSticker, GetGuildStickers,
                 UpdateGuildSticker,
             },
+            update_guild_onboarding::UpdateGuildOnboarding,
             user::{UpdateCurrentUserVoiceState, UpdateUserVoiceState},
             CreateGuild, CreateGuildChannel, CreateGuildPrune, DeleteGuild, GetActiveThreads,
-            GetAuditLog, GetGuild, GetGuildChannels, GetGuildInvites, GetGuildPreview,
-            GetGuildPruneCount, GetGuildVanityUrl, GetGuildVoiceRegions, GetGuildWebhooks,
-            GetGuildWelcomeScreen, GetGuildWidget, GetGuildWidgetSettings, UpdateCurrentMember,
-            UpdateGuild, UpdateGuildChannelPositions, UpdateGuildMfa, UpdateGuildWelcomeScreen,
-            UpdateGuildWidgetSettings,
+            GetAuditLog, GetGuild, GetGuildChannels, GetGuildInvites, GetGuildOnboarding,
+            GetGuildPreview, GetGuildPruneCount, GetGuildVanityUrl, GetGuildVoiceRegions,
+            GetGuildWebhooks, GetGuildWelcomeScreen, GetGuildWidget, GetGuildWidgetSettings,
+            UpdateCurrentMember, UpdateGuild, UpdateGuildChannelPositions, UpdateGuildMfa,
+            UpdateGuildWelcomeScreen, UpdateGuildWidgetSettings,
         },
         scheduled_event::{
             CreateGuildExternalScheduledEvent, CreateGuildStageInstanceScheduledEvent,
@@ -191,6 +192,7 @@ mod private {
     impl Sealed for GetGuildIntegrations<'_> {}
     impl Sealed for GetGuildInvites<'_> {}
     impl Sealed for GetGuildMembers<'_> {}
+    impl Sealed for GetGuildOnboarding<'_> {}
     impl Sealed for GetGuildPreview<'_> {}
     impl Sealed for GetGuildPruneCount<'_> {}
     impl Sealed for GetGuildRoles<'_> {}
@@ -251,6 +253,7 @@ mod private {
     impl Sealed for UpdateGuildCommand<'_> {}
     impl Sealed for UpdateGuildMember<'_> {}
     impl Sealed for UpdateGuildMfa<'_> {}
+    impl Sealed for UpdateGuildOnboarding<'_> {}
     impl Sealed for UpdateGuildScheduledEvent<'_> {}
     impl Sealed for UpdateGuildSticker<'_> {}
     impl Sealed for UpdateGuildWelcomeScreen<'_> {}

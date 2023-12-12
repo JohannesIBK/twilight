@@ -39,8 +39,7 @@ impl Debug for Token {
 /// May be reused by cloning, also reusing the hidden TLS context---reducing
 /// memory usage. The TLS context may still be reused with an otherwise
 /// different config by turning it into to a [`ConfigBuilder`] through the
-/// [`ConfigBuilder::with_config`] function and then rebuilding it into a new
-/// config.
+/// [`From<Config>`] implementation and then rebuilding it into a rew config.
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Event type flags.
@@ -65,7 +64,7 @@ pub struct Config {
     /// Session information to resume a shard on initialization.
     session: Option<Session>,
     /// TLS connector for Websocket connections.
-    // We need this to be public so [`stream`] can re-use TLS on multiple shards
+    // We need this to be public so [`stream`] can reuse TLS on multiple shards
     // if unconfigured.
     tls: TlsContainer,
     /// Token used to authenticate when identifying with the gateway.
@@ -200,6 +199,7 @@ impl ConfigBuilder {
     }
 
     /// Create a new builder from an existing configuration.
+    #[deprecated(since = "0.15.3", note = "use From<Config> instead")]
     pub const fn with_config(config: Config) -> Self {
         Self { inner: config }
     }
@@ -387,6 +387,12 @@ impl ConfigBuilder {
     }
 }
 
+impl From<Config> for ConfigBuilder {
+    fn from(value: Config) -> Self {
+        Self { inner: value }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Config, ConfigBuilder};
@@ -413,13 +419,13 @@ mod tests {
         }
     }
 
-    #[should_panic]
+    #[should_panic(expected = "large threshold isn't in the accepted range")]
     #[tokio::test]
     async fn large_threshold_minimum() {
         drop(builder().large_threshold(49));
     }
 
-    #[should_panic]
+    #[should_panic(expected = "large threshold isn't in the accepted range")]
     #[tokio::test]
     async fn large_threshold_maximum() {
         drop(builder().large_threshold(251));

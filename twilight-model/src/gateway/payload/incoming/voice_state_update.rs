@@ -35,7 +35,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn voice_state_update() {
-        let joined_at = Timestamp::from_secs(1_632_072_645).expect("non zero");
+        let joined_at = Some(Timestamp::from_secs(1_632_072_645).expect("non zero"));
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let value = VoiceStateUpdate(VoiceState {
@@ -57,9 +57,11 @@ mod tests {
                     id: Id::new(1),
                     accent_color: None,
                     avatar: None,
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 909,
+                    global_name: Some("test".to_string()),
                     name: "foo".to_string(),
                     mfa_enabled: None,
                     locale: None,
@@ -113,6 +115,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2021-09-19T17:30:45.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -128,11 +131,13 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
+                Token::None,
+                Token::Str("avatar_decoration"),
                 Token::None,
                 Token::Str("banner"),
                 Token::None,
@@ -140,6 +145,9 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0909"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("1"),
@@ -174,7 +182,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn voice_state_update_deser_tokens() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2016-12-08T18:41:21.954000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2016-12-08T18:41:21.954000+00:00")?);
         let request_to_speak_timestamp = Timestamp::from_str("2021-03-31T18:45:31.297561+00:00")?;
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
@@ -197,9 +205,11 @@ mod tests {
                     id: Id::new(1_234_123_123_123),
                     accent_color: None,
                     avatar: Some(image_hash::AVATAR),
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 4242,
+                    global_name: Some("test".to_string()),
                     name: "Twilight Sparkle".to_string(),
                     mfa_enabled: None,
                     locale: None,
@@ -257,6 +267,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2016-12-08T18:41:21.954000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -275,7 +286,7 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 8,
                 },
                 Token::Str("accent_color"),
                 Token::None,
@@ -288,6 +299,9 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("4242"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("1234123123123"),

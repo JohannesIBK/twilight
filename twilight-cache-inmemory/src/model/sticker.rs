@@ -201,11 +201,13 @@ mod tests {
             user: Some(User {
                 accent_color: None,
                 avatar: Some(avatar),
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: Some("address@example.com".to_owned()),
                 flags: Some(UserFlags::PREMIUM_EARLY_SUPPORTER | UserFlags::VERIFIED_DEVELOPER),
+                global_name: Some("test".to_owned()),
                 id: Id::new(1),
                 locale: Some("en-us".to_owned()),
                 mfa_enabled: Some(true),

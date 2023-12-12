@@ -34,7 +34,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn typing_start_with_member() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?);
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let value = TypingStart {
@@ -55,9 +55,11 @@ mod tests {
                     id: Id::new(3),
                     accent_color: None,
                     avatar: Some(image_hash::AVATAR),
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 1,
+                    global_name: Some("test".to_owned()),
                     name: "test".to_owned(),
                     mfa_enabled: None,
                     locale: None,
@@ -100,6 +102,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2020-01-01T00:00:00.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -116,19 +119,24 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("0001"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),

@@ -77,6 +77,7 @@ struct Bystander<T> {
 impl<T: Debug> Debug for Bystander<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("Bystander")
+            .field("func", &"<dyn Fn(&T) -> bool>")
             .field("sender", &self.sender)
             .finish()
     }
@@ -848,7 +849,7 @@ impl Standby {
         //
         // A form of enumeration can't be used because sometimes the index
         // doesn't advance; iterators would continue to provide incrementing
-        // enumeration indexes while we sometimes want to re-use an index.
+        // enumeration indexes while we sometimes want to reuse an index.
         let mut index = 0;
         let mut results = ProcessResults::new();
 
@@ -1095,11 +1096,13 @@ mod tests {
             author: User {
                 accent_color: None,
                 avatar: None,
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: None,
                 flags: None,
+                global_name: Some("test".to_owned()),
                 id: Id::new(2),
                 locale: None,
                 mfa_enabled: None,
@@ -1145,6 +1148,7 @@ mod tests {
             },
             guild_id: Some(Id::new(1)),
             member: None,
+            message_author_id: None,
             message_id: Id::new(4),
             user_id: Id::new(3),
         }
@@ -1211,11 +1215,13 @@ mod tests {
             user: Some(User {
                 accent_color: None,
                 avatar: None,
+                avatar_decoration: None,
                 banner: None,
                 bot: false,
                 discriminator: 1,
                 email: None,
                 flags: None,
+                global_name: Some("test".to_owned()),
                 id: Id::new(2),
                 locale: None,
                 mfa_enabled: None,

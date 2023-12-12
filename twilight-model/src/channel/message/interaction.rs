@@ -40,7 +40,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn message_interaction() -> Result<(), Box<dyn Error>> {
-        let joined_at = Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2015-04-26T06:26:56.936000+00:00")?);
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let value = MessageInteraction {
@@ -63,11 +63,13 @@ mod tests {
             user: User {
                 accent_color: None,
                 avatar: Some(image_hash::AVATAR),
+                avatar_decoration: None,
                 banner: Some(image_hash::BANNER),
                 bot: false,
                 discriminator: 1,
                 email: Some("address@example.com".to_owned()),
                 flags: Some(UserFlags::PREMIUM_EARLY_SUPPORTER | UserFlags::VERIFIED_DEVELOPER),
+                global_name: Some("test".to_owned()),
                 id: Id::new(3),
                 locale: Some("en-us".to_owned()),
                 mfa_enabled: Some(true),
@@ -106,6 +108,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2015-04-26T06:26:56.936000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(true),
@@ -125,13 +128,15 @@ mod tests {
                 Token::Str("user"),
                 Token::Struct {
                     name: "User",
-                    len: 14,
+                    len: 16,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::Some,
                 Token::Str(image_hash::BANNER_INPUT),
@@ -145,6 +150,9 @@ mod tests {
                 Token::Str("flags"),
                 Token::Some,
                 Token::U64(131_584),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("3"),

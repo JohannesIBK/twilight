@@ -211,25 +211,12 @@ impl<'de> Visitor<'de> for InteractionVisitor {
         let mut token: Option<String> = None;
         let mut user: Option<User> = None;
 
-        let span = tracing::trace_span!("deserializing interaction");
-        let _span_enter = span.enter();
-
         loop {
-            let span_child = tracing::trace_span!("iterating over interaction");
-            let _span_child_enter = span_child.enter();
-
             let key = match map.next_key() {
-                Ok(Some(key)) => {
-                    tracing::trace!(?key, "found key");
-
-                    key
-                }
+                Ok(Some(key)) => key,
                 Ok(None) => break,
-                Err(why) => {
-                    // Encountered when we run into an unknown key.
+                Err(_) => {
                     map.next_value::<IgnoredAny>()?;
-
-                    tracing::trace!("ran into an unknown key: {why:?}");
 
                     continue;
                 }
@@ -347,14 +334,6 @@ impl<'de> Visitor<'de> for InteractionVisitor {
         let token = token.ok_or_else(|| DeError::missing_field("token"))?;
         let kind = kind.ok_or_else(|| DeError::missing_field("kind"))?;
 
-        tracing::trace!(
-            %application_id,
-            %id,
-            %token,
-            ?kind,
-            "common fields of all variants exist"
-        );
-
         let data = match kind {
             InteractionType::Ping => None,
             InteractionType::ApplicationCommand => {
@@ -455,7 +434,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines, deprecated)]
     fn test_interaction_full() -> Result<(), TimestampParseError> {
-        let joined_at = Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?;
+        let joined_at = Some(Timestamp::from_str("2020-01-01T00:00:00.000000+00:00")?);
         let flags = MemberFlags::BYPASSES_VERIFICATION | MemberFlags::DID_REJOIN;
 
         let value = Interaction {
@@ -533,11 +512,13 @@ mod tests {
                         User {
                             accent_color: None,
                             avatar: Some(image_hash::AVATAR),
+                            avatar_decoration: None,
                             banner: None,
                             bot: false,
                             discriminator: 1111,
                             email: None,
                             flags: None,
+                            global_name: Some("test".into()),
                             id: Id::new(600),
                             locale: None,
                             mfa_enabled: None,
@@ -571,11 +552,13 @@ mod tests {
                 user: Some(User {
                     accent_color: None,
                     avatar: Some(image_hash::AVATAR),
+                    avatar_decoration: None,
                     banner: None,
                     bot: false,
                     discriminator: 1111,
                     email: None,
                     flags: None,
+                    global_name: Some("test".into()),
                     id: Id::new(600),
                     locale: None,
                     mfa_enabled: None,
@@ -668,6 +651,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2020-01-01T00:00:00.000000+00:00"),
                 Token::Str("nick"),
                 Token::Some,
@@ -687,19 +671,24 @@ mod tests {
                 Token::Str("600"),
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("1111"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("600"),
@@ -737,6 +726,7 @@ mod tests {
                 Token::Str("flags"),
                 Token::U64(flags.bits()),
                 Token::Str("joined_at"),
+                Token::Some,
                 Token::Str("2020-01-01T00:00:00.000000+00:00"),
                 Token::Str("mute"),
                 Token::Bool(false),
@@ -753,19 +743,24 @@ mod tests {
                 Token::Some,
                 Token::Struct {
                     name: "User",
-                    len: 7,
+                    len: 9,
                 },
                 Token::Str("accent_color"),
                 Token::None,
                 Token::Str("avatar"),
                 Token::Some,
                 Token::Str(image_hash::AVATAR_INPUT),
+                Token::Str("avatar_decoration"),
+                Token::None,
                 Token::Str("banner"),
                 Token::None,
                 Token::Str("bot"),
                 Token::Bool(false),
                 Token::Str("discriminator"),
                 Token::Str("1111"),
+                Token::Str("global_name"),
+                Token::Some,
+                Token::Str("test"),
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("600"),

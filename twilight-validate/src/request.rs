@@ -920,7 +920,7 @@ pub fn scheduled_event_description(description: impl AsRef<str>) -> Result<(), V
 /// [`ScheduledEventGetUsers`]: ValidationErrorType::ScheduledEventGetUsers
 /// [this documentation entry]: https://discord.com/developers/docs/resources/guild-scheduled-event#get-guild-scheduled-event-users-query-string-params
 pub const fn scheduled_event_get_users(limit: u16) -> Result<(), ValidationError> {
-    if limit <= SCHEDULED_EVENT_GET_USERS_MIN && limit >= SCHEDULED_EVENT_GET_USERS_MAX {
+    if limit >= SCHEDULED_EVENT_GET_USERS_MIN && limit <= SCHEDULED_EVENT_GET_USERS_MAX {
         Ok(())
     } else {
         Err(ValidationError {
@@ -1324,6 +1324,14 @@ mod tests {
     }
 
     #[test]
+    fn scheduled_event_get_users_length() {
+        assert!(scheduled_event_get_users(0).is_err());
+        assert!(scheduled_event_get_users(101).is_err());
+        assert!(scheduled_event_get_users(100).is_ok());
+        assert!(scheduled_event_get_users(1).is_ok());
+    }
+
+    #[test]
     fn scheduled_event_name_length() {
         assert!(scheduled_event_name("a").is_ok());
         assert!(scheduled_event_name("a".repeat(100)).is_ok());
@@ -1379,7 +1387,7 @@ mod tests {
         assert!(username("no @ in username").is_err());
         assert!(username("no # in username").is_err());
         assert!(username("no : in username").is_err());
-        assert!(username(r#"no ``` in username"#).is_err());
+        assert!(username(r"no ``` in username").is_err());
         assert!(username("no discord in username").is_err());
         assert!(username("everyone").is_err());
         assert!(username("here").is_err());

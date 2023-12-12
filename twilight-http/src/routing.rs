@@ -33,9 +33,6 @@ pub enum Route<'a> {
     },
     /// Route information to create a ban on a user in a guild.
     CreateBan {
-        /// The number of seconds' worth of the user's messages to delete in the
-        /// guild's channels.
-        delete_message_seconds: Option<u32>,
         /// The ID of the guild.
         guild_id: u64,
         /// The ID of the user.
@@ -542,6 +539,11 @@ pub enum Route<'a> {
         /// The maximum number of members to get.
         limit: Option<u16>,
     },
+    /// Route information to get a guild's onboarding information.
+    GetGuildOnboarding {
+        /// The ID of the guild to get onboarding information for.
+        guild_id: u64,
+    },
     /// Route information to get a guild's preview.
     GetGuildPreview {
         /// The ID of the guild.
@@ -989,6 +991,10 @@ pub enum Route<'a> {
         /// ID of the guild.
         guild_id: u64,
     },
+    UpdateGuildOnboarding {
+        /// The ID of the guild to update onboarding information for.
+        guild_id: u64,
+    },
     /// Route information to update a scheduled event in a guild.
     UpdateGuildScheduledEvent {
         /// ID of the guild.
@@ -1176,6 +1182,7 @@ impl<'a> Route<'a> {
             | Self::GetGuildIntegrations { .. }
             | Self::GetGuildInvites { .. }
             | Self::GetGuildMembers { .. }
+            | Self::GetGuildOnboarding { .. }
             | Self::GetGuildPreview { .. }
             | Self::GetGuildPruneCount { .. }
             | Self::GetGuildRoles { .. }
@@ -1282,6 +1289,7 @@ impl<'a> Route<'a> {
             | Self::SetGuildCommands { .. }
             | Self::SyncTemplate { .. }
             | Self::UpdateCommandPermissions { .. }
+            | Self::UpdateGuildOnboarding { .. }
             | Self::UpdatePermissionOverwrite { .. } => Method::Put,
         }
     }
@@ -1547,6 +1555,9 @@ impl<'a> Route<'a> {
             Self::GetGuildMembers { guild_id, .. } | Self::UpdateCurrentMember { guild_id, .. } => {
                 Path::GuildsIdMembers(guild_id)
             }
+            Self::GetGuildOnboarding { guild_id } | Self::UpdateGuildOnboarding { guild_id } => {
+                Path::GuildsIdOnboarding(guild_id)
+            }
             Self::CreateGuildScheduledEvent { guild_id, .. }
             | Self::GetGuildScheduledEvents { guild_id, .. } => {
                 Path::GuildsIdScheduledEvents(guild_id)
@@ -1620,7 +1631,7 @@ impl<'a> Route<'a> {
 ///     with_counts: true,
 /// };
 ///
-/// assert_eq!("invites/twilight-rs?with-counts=true", route.to_string());
+/// assert_eq!("invites/twilight-rs?with_counts=true", route.to_string());
 /// ```
 ///
 /// [`GetInvite`]: Self::GetInvite
@@ -1687,24 +1698,6 @@ impl Display for Route<'_> {
                 Display::fmt(guild_id, f)?;
 
                 f.write_str("/auto-moderation/rules")
-            }
-            Route::CreateBan {
-                guild_id,
-                delete_message_seconds,
-                user_id,
-            } => {
-                f.write_str("guilds/")?;
-                Display::fmt(guild_id, f)?;
-                f.write_str("/bans/")?;
-                Display::fmt(user_id, f)?;
-                f.write_str("?")?;
-
-                if let Some(delete_message_seconds) = delete_message_seconds {
-                    f.write_str("delete_message_seconds=")?;
-                    Display::fmt(delete_message_seconds, f)?;
-                }
-
-                Ok(())
             }
             Route::CreateChannel { guild_id }
             | Route::GetChannels { guild_id }
@@ -1948,7 +1941,9 @@ impl Display for Route<'_> {
 
                 f.write_str("/crosspost")
             }
-            Route::DeleteBan { guild_id, user_id } | Route::GetBan { guild_id, user_id } => {
+            Route::DeleteBan { guild_id, user_id }
+            | Route::GetBan { guild_id, user_id }
+            | Route::CreateBan { guild_id, user_id } => {
                 f.write_str("guilds/")?;
                 Display::fmt(guild_id, f)?;
                 f.write_str("/bans/")?;
@@ -2406,6 +2401,12 @@ impl Display for Route<'_> {
 
                 Ok(())
             }
+            Route::GetGuildOnboarding { guild_id } | Route::UpdateGuildOnboarding { guild_id } => {
+                f.write_str("guilds/")?;
+                Display::fmt(guild_id, f)?;
+
+                f.write_str("/onboarding")
+            }
             Route::GetGuildPreview { guild_id } => {
                 f.write_str("guilds/")?;
                 Display::fmt(guild_id, f)?;
@@ -2595,7 +2596,7 @@ impl Display for Route<'_> {
                 f.write_str(code)?;
 
                 if *with_counts {
-                    f.write_str("?with-counts=true")?;
+                    f.write_str("?with_counts=true")?;
                 }
 
                 Ok(())
@@ -2610,11 +2611,11 @@ impl Display for Route<'_> {
                 f.write_str("?")?;
 
                 if *with_counts {
-                    f.write_str("with-counts=true")?;
+                    f.write_str("with_counts=true")?;
                 }
 
                 if *with_expiration {
-                    f.write_str("with-expiration=true")?;
+                    f.write_str("&with_expiration=true")?;
                 }
 
                 Ok(())
@@ -4333,22 +4334,20 @@ mod tests {
     fn create_ban() {
         let mut route = Route::CreateBan {
             guild_id: GUILD_ID,
-            delete_message_seconds: None,
             user_id: USER_ID,
         };
         assert_eq!(
             route.to_string(),
-            format!("guilds/{GUILD_ID}/bans/{USER_ID}?")
+            format!("guilds/{GUILD_ID}/bans/{USER_ID}")
         );
 
         route = Route::CreateBan {
             guild_id: GUILD_ID,
-            delete_message_seconds: Some(259_200),
             user_id: USER_ID,
         };
         assert_eq!(
             route.to_string(),
-            format!("guilds/{GUILD_ID}/bans/{USER_ID}?delete_message_seconds=259200")
+            format!("guilds/{GUILD_ID}/bans/{USER_ID}")
         );
     }
 
@@ -4671,5 +4670,11 @@ mod tests {
             route.to_string(),
             format!("guilds/{GUILD_ID}/auto-moderation/rules/{AUTO_MODERATION_RULE_ID}")
         );
+    }
+
+    #[test]
+    fn get_guild_onboarding() {
+        let route = Route::GetGuildOnboarding { guild_id: GUILD_ID };
+        assert_eq!(route.to_string(), format!("guilds/{GUILD_ID}/onboarding"));
     }
 }

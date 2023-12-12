@@ -63,14 +63,13 @@ use crate::{
         ProcessError, ProcessErrorType, ReceiveMessageError, ReceiveMessageErrorType, SendError,
         SendErrorType,
     },
-    future::{self, NextMessageFuture, NextMessageFutureOutput},
     json::{self, UnknownEventError},
     latency::Latency,
     ratelimiter::CommandRatelimiter,
     session::Session,
     Config, Message, ShardId,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{stream::Stream, SinkExt};
 use serde::{de::DeserializeOwned, Deserialize};
 #[cfg(any(
     feature = "native",
@@ -78,19 +77,19 @@ use serde::{de::DeserializeOwned, Deserialize};
     feature = "rustls-webpki-roots"
 ))]
 use std::io::ErrorKind as IoErrorKind;
-use std::{env::consts::OS, error::Error, str};
+use std::{
+    env::consts::OS,
+    error::Error,
+    future::{poll_fn, Future},
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+};
 use tokio::{
     task::JoinHandle,
     time::{self, Duration, Instant, Interval, MissedTickBehavior},
 };
-#[cfg(any(
-    feature = "native",
-    feature = "rustls-native-roots",
-    feature = "rustls-webpki-roots"
-))]
-use tokio_tungstenite::tungstenite::Error as TungsteniteError;
-#[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
-use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+use tokio_tungstenite::tungstenite::{Error as TungsteniteError, Message as TungsteniteMessage};
 use twilight_model::gateway::{
     event::{Event, GatewayEventDeserializer},
     payload::{
@@ -155,7 +154,7 @@ pub enum ConnectionStatus {
         /// Close code of the close message.
         close_code: CloseCode,
     },
-    /// Shard is waiting to establish an active session.
+    /// Shard is waiting to establish or resume a session.
     Identifying,
     /// Shard is replaying missed dispatch events.
     ///
@@ -236,6 +235,19 @@ struct MinimalReady {
     resume_gateway_url: Box<str>,
     /// ID of the new identified session.
     session_id: String,
+}
+
+/// Possible actions the shard should take.
+#[derive(Debug)]
+enum NextAction {
+    /// Close the websocket connection with a [`CloseFrame::RESUME`].
+    CloseResume,
+    /// Close the websocket connection with a [`CloseFrame::NORMAL`].
+    CloseNormal,
+    /// Send a heartbeat.
+    Heartbeat,
+    /// Send a resume.
+    Resume,
 }
 
 /// Gateway API client responsible for up to 2500 guilds.
@@ -360,6 +372,8 @@ pub struct Shard {
     /// Zlib decompressor.
     #[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
     inflater: Inflater,
+    /// Next action to take in response to certain gateway events.
+    next_action: Option<NextAction>,
     /// Recent heartbeat latency statistics.
     ///
     /// The latency is reset on receiving [`GatewayEvent::Hello`] as the host
@@ -405,6 +419,7 @@ impl Shard {
             identify_handle: None,
             #[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
             inflater: Inflater::new(),
+            next_action: None,
             latency: Latency::new(),
             ratelimiter: None,
             resume_gateway_url: None,
@@ -559,6 +574,20 @@ impl Shard {
     /// shard failed to send a message to the gateway, such as a heartbeat.
     #[tracing::instrument(fields(id = %self.id()), name = "shard", skip(self))]
     pub async fn next_message(&mut self) -> Result<Message, ReceiveMessageError> {
+        /// Actions the shard might take.
+        enum Action {
+            /// Close the gateway connection with this close frame.
+            Close(CloseFrame<'static>),
+            /// Send this command to the gateway.
+            Command(String),
+            /// Send a heartbeat command to the gateway.
+            Heartbeat,
+            /// Identify with the gateway.
+            Identify,
+            /// Handle this incoming gateway message.
+            Message(Option<Result<TungsteniteMessage, TungsteniteError>>),
+        }
+
         match self.status {
             ConnectionStatus::Disconnected {
                 close_code,
@@ -578,19 +607,97 @@ impl Shard {
             _ => {}
         }
 
-        let message = loop {
-            let future = NextMessageFuture::new(
-                &mut self.user_channel.close_rx,
-                &mut self.user_channel.command_rx,
-                &self.status,
-                self.identify_handle.as_mut(),
-                self.connection.as_mut().expect("connected").next(),
-                self.heartbeat_interval.as_mut(),
-                self.ratelimiter.as_mut(),
-            );
+        match self.next_action.take() {
+            Some(NextAction::CloseNormal) => {
+                self.close(CloseFrame::NORMAL)
+                    .await
+                    .map_err(ReceiveMessageError::from_send)?;
+            }
+            Some(NextAction::CloseResume) => {
+                self.session = self
+                    .close(CloseFrame::RESUME)
+                    .await
+                    .map_err(ReceiveMessageError::from_send)?;
+            }
+            Some(NextAction::Resume) => {
+                let session = self.session().expect("variant only set if some");
+                let resume = Resume::new(session.sequence(), session.id(), self.config().token());
+                let json = command::prepare(&resume).map_err(ReceiveMessageError::from_send)?;
+                self.send(json)
+                    .await
+                    .map_err(ReceiveMessageError::from_send)?;
+                self.status = ConnectionStatus::Resuming;
+            }
+            Some(NextAction::Heartbeat) => {
+                self.heartbeat()
+                    .await
+                    .map_err(ReceiveMessageError::from_send)?;
+            }
+            None => {}
+        }
 
-            let tungstenite_message = match future.await {
-                NextMessageFutureOutput::Message(Some(Ok(message))) => message,
+        let message = loop {
+            let next_action = |cx: &mut Context<'_>| {
+                if !(self.status.is_disconnected() || self.status.is_fatally_closed()) {
+                    if let Poll::Ready(frame) = self.user_channel.close_rx.poll_recv(cx) {
+                        return Poll::Ready(Action::Close(frame.expect("shard owns channel")));
+                    }
+                }
+
+                if self
+                    .heartbeat_interval
+                    .as_mut()
+                    .map_or(false, |heartbeater| heartbeater.poll_tick(cx).is_ready())
+                {
+                    return Poll::Ready(Action::Heartbeat);
+                }
+
+                let ratelimited = self
+                    .ratelimiter
+                    .as_mut()
+                    .map_or(false, |ratelimiter| ratelimiter.poll_ready(cx).is_pending());
+
+                if !ratelimited
+                    && self
+                        .identify_handle
+                        .as_mut()
+                        .map_or(false, |handle| Pin::new(handle).poll(cx).is_ready())
+                {
+                    return Poll::Ready(Action::Identify);
+                }
+
+                if !ratelimited && self.status.is_identified() {
+                    if let Poll::Ready(command) = self.user_channel.command_rx.poll_recv(cx) {
+                        return Poll::Ready(Action::Command(command.expect("shard owns channel")));
+                    }
+                }
+
+                if let Poll::Ready(message) =
+                    Pin::new(self.connection.as_mut().expect("connected")).poll_next(cx)
+                {
+                    return Poll::Ready(Action::Message(message));
+                }
+
+                Poll::Pending
+            };
+
+            match poll_fn(next_action).await {
+                Action::Message(Some(Ok(message))) => {
+                    #[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
+                    if let TungsteniteMessage::Binary(bytes) = &message {
+                        if let Some(decompressed) = self
+                            .inflater
+                            .inflate(bytes)
+                            .map_err(ReceiveMessageError::from_compression)?
+                        {
+                            tracing::trace!(%decompressed);
+                            break Message::Text(decompressed);
+                        };
+                    }
+                    if let Some(message) = Message::from_tungstenite(message) {
+                        break message;
+                    }
+                }
                 // Discord, against recommendations from the WebSocket spec,
                 // does not send a close_notify prior to shutting down the TCP
                 // stream. This arm tries to gracefully handle this. The
@@ -601,7 +708,7 @@ impl Shard {
                     feature = "rustls-native-roots",
                     feature = "rustls-webpki-roots"
                 ))]
-                NextMessageFutureOutput::Message(Some(Err(TungsteniteError::Io(e))))
+                Action::Message(Some(Err(TungsteniteError::Io(e))))
                     if e.kind() == IoErrorKind::UnexpectedEof
                         // Assert we're directly connected to Discord's gateway.
                         && self.config.proxy_url().is_none()
@@ -609,7 +716,7 @@ impl Shard {
                 {
                     continue
                 }
-                NextMessageFutureOutput::Message(Some(Err(source))) => {
+                Action::Message(Some(Err(source))) => {
                     self.disconnect(CloseInitiator::None);
 
                     return Err(ReceiveMessageError {
@@ -617,7 +724,7 @@ impl Shard {
                         source: Some(Box::new(source)),
                     });
                 }
-                NextMessageFutureOutput::Message(None) => {
+                Action::Message(None) => {
                     tracing::debug!("gateway connection closed");
                     self.connection = None;
 
@@ -640,7 +747,7 @@ impl Shard {
 
                     continue;
                 }
-                NextMessageFutureOutput::SendHeartbeat => {
+                Action::Heartbeat => {
                     let is_first_heartbeat =
                         self.heartbeat_interval.is_some() && self.latency.sent().is_none();
 
@@ -664,7 +771,7 @@ impl Shard {
 
                     continue;
                 }
-                NextMessageFutureOutput::SendIdentify => {
+                Action::Identify => {
                     self.identify_handle = None;
 
                     tracing::debug!("sending identify");
@@ -689,7 +796,7 @@ impl Shard {
 
                     continue;
                 }
-                NextMessageFutureOutput::UserClose(frame) => {
+                Action::Close(frame) => {
                     tracing::debug!("sending close frame from user channel");
                     self.session = self
                         .close(frame)
@@ -698,29 +805,14 @@ impl Shard {
 
                     continue;
                 }
-                NextMessageFutureOutput::UserCommand(message) => {
+                Action::Command(json) => {
                     tracing::debug!("sending command from user channel");
-                    self.send(message)
+                    self.send(json)
                         .await
                         .map_err(ReceiveMessageError::from_send)?;
 
                     continue;
                 }
-            };
-
-            #[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
-            if let TungsteniteMessage::Binary(bytes) = &tungstenite_message {
-                if let Some(decompressed) = self
-                    .inflater
-                    .inflate(bytes)
-                    .map_err(ReceiveMessageError::from_compression)?
-                {
-                    tracing::trace!(%decompressed);
-                    break Message::Text(decompressed);
-                };
-            }
-            if let Some(message) = Message::from_tungstenite(tungstenite_message) {
-                break message;
             }
         };
 
@@ -736,12 +828,10 @@ impl Shard {
                 }
             }
             Message::Text(event) => {
-                self.process(event)
-                    .await
-                    .map_err(|source| ReceiveMessageError {
-                        kind: ReceiveMessageErrorType::Process,
-                        source: Some(Box::new(source)),
-                    })?;
+                self.process(event).map_err(|source| ReceiveMessageError {
+                    kind: ReceiveMessageErrorType::Process,
+                    source: Some(Box::new(source)),
+                })?;
             }
         }
 
@@ -974,7 +1064,7 @@ impl Shard {
     ///
     /// [`GatewayEvent`]: twilight_model::gateway::event::GatewayEvent
     #[allow(clippy::too_many_lines)]
-    async fn process(&mut self, event: &str) -> Result<(), ProcessError> {
+    fn process(&mut self, event: &str) -> Result<(), ProcessError> {
         let (raw_opcode, maybe_sequence, maybe_event_type) =
             GatewayEventDeserializer::from_json(event)
                 .ok_or(ProcessError {
@@ -1017,32 +1107,13 @@ impl Shard {
                     _ => {}
                 }
 
-                // READY *should* be the first received dispatch event (which
-                // initializes `self.session`), but it shouldn't matter that
-                // much if it's not.
                 if let Some(session) = self.session.as_mut() {
-                    let last_sequence = session.set_sequence(sequence);
-
-                    // If a sequence has been skipped then we may have missed a
-                    // message and should cause a reconnect so we can attempt to get
-                    // that message again.
-                    if sequence > last_sequence + 1 {
-                        tracing::info!(
-                            missed_events = sequence - (last_sequence + 1),
-                            "dispatch events have been missed",
-                        );
-                        self.session = self
-                            .close(CloseFrame::RESUME)
-                            .await
-                            .map_err(ProcessError::from_send)?;
-                    }
-                } else {
-                    tracing::info!("unable to store sequence");
+                    session.set_sequence(sequence);
                 }
             }
             Some(OpCode::Heartbeat) => {
                 tracing::debug!("received heartbeat");
-                self.heartbeat().await.map_err(ProcessError::from_send)?;
+                self.next_action = Some(NextAction::Heartbeat);
             }
             Some(OpCode::HeartbeatAck) => {
                 let requested = self.latency.received().is_none() && self.latency.sent().is_some();
@@ -1062,7 +1133,7 @@ impl Shard {
                 tracing::debug!(?heartbeat_interval, ?jitter, "received hello");
 
                 if self.config().ratelimit_messages() {
-                    self.ratelimiter = Some(CommandRatelimiter::new(heartbeat_interval).await);
+                    self.ratelimiter = Some(CommandRatelimiter::new(heartbeat_interval));
                 }
 
                 let mut interval = time::interval_at(Instant::now() + jitter, heartbeat_interval);
@@ -1073,17 +1144,18 @@ impl Shard {
                 // remote which invalidates the recorded latencies.
                 self.latency = Latency::new();
 
-                match self.session() {
-                    Some(session) => {
-                        tracing::debug!(sequence = session.sequence(), "sending resume");
-                        let resume =
-                            Resume::new(session.sequence(), session.id(), self.config().token());
-                        let json = command::prepare(&resume).map_err(ProcessError::from_send)?;
-                        self.send(json).await.map_err(ProcessError::from_send)?;
-                    }
-                    None => {
-                        // Can not use `MessageSender` since it is only polled
-                        // after the shard is identified.
+                if self.session.is_some() {
+                    self.next_action = Some(NextAction::Resume);
+                } else {
+                    // Can not use `MessageSender` since it is only polled after
+                    // the shard is identified.
+
+                    // If the JoinHandle is finished, or there is none (def: true), we create a new one
+                    if self
+                        .identify_handle
+                        .as_ref()
+                        .map_or(true, JoinHandle::is_finished)
+                    {
                         self.identify_handle = Some(tokio::spawn({
                             let shard_id = self.id();
                             let queue = self.config().queue().clone();
@@ -1099,22 +1171,14 @@ impl Shard {
                 let resumable = Self::parse_event(event)?.data;
                 tracing::debug!(resumable, "received invalid session");
                 if resumable {
-                    self.session = self
-                        .close(CloseFrame::RESUME)
-                        .await
-                        .map_err(ProcessError::from_send)?;
+                    self.next_action = Some(NextAction::CloseResume);
                 } else {
-                    self.close(CloseFrame::NORMAL)
-                        .await
-                        .map_err(ProcessError::from_send)?;
+                    self.next_action = Some(NextAction::CloseNormal);
                 }
             }
             Some(OpCode::Reconnect) => {
                 tracing::debug!("received reconnect");
-                self.session = self
-                    .close(CloseFrame::RESUME)
-                    .await
-                    .map_err(ProcessError::from_send)?;
+                self.next_action = Some(NextAction::CloseResume);
             }
             _ => tracing::info!("received an unknown opcode: {raw_opcode}"),
         }
@@ -1137,7 +1201,10 @@ impl Shard {
         close_code: Option<u16>,
         reconnect_attempts: u8,
     ) -> Result<(), ReceiveMessageError> {
-        future::reconnect_delay(reconnect_attempts).await;
+        if reconnect_attempts != 0 {
+            let secs = 2u8.saturating_pow(reconnect_attempts.into());
+            time::sleep(Duration::from_secs(secs.into())).await;
+        }
 
         let maybe_gateway_url = self
             .resume_gateway_url
@@ -1157,19 +1224,7 @@ impl Shard {
                     source
                 })?,
         );
-
-        if self.session().is_some() {
-            // Defer sending a Resume event until Hello has been received to
-            // guard against the first message being a websocket close message
-            // (causing us to miss replayed dispatch events).
-            // We also set/reset the ratelimiter upon receiving Hello, which
-            // means sending anything before then will not be recorded by the
-            // ratelimiter.
-            self.status = ConnectionStatus::Resuming;
-        } else {
-            self.status = ConnectionStatus::Identifying;
-        }
-
+        self.status = ConnectionStatus::Identifying;
         #[cfg(any(feature = "zlib-stock", feature = "zlib-simd"))]
         self.inflater.reset();
 
